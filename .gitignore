@@ -1,0 +1,10 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# ignore all raw data
+data/Mifsud2015/*
+
+# ignore all results
+results/*
