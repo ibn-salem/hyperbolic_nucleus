@@ -93,6 +93,7 @@ fltDF <- inData[inData$log.obs.exp. >= 10,]
 message("INFO: Filtered network has ", nrow(fltDF), " interactions between ", 
         length(unique(c(fltDF[,1], fltDF[,2]))), " genes")
 
-write.table(inData, file="results/Mifsud2015_GM12787_with_dist.tsv",
+write.table(inData, file="results/Mifsud2015_GM12787_with_dist.lnObsExp_10.tsv",
             sep="\t", quote=FALSE, col.names=TRUE, row.names=FALSE)
+
 
