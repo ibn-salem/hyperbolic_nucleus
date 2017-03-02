@@ -40,7 +40,6 @@ compare_clustering_to_er <- function(network, epochs = 100, label = "Given netwo
                    clust = c(transitivity(network, type = "average"), mean(er.clust)),
                    err = c(0, sd(er.clust)))
   dodge <- position_dodge(width = 0.9)
-  print(mean(er.clust))
   return(ggplot(df, aes(net, clust)) + geom_bar(position = dodge, stat = "identity") + geom_errorbar(aes(ymin = clust-err, ymax = clust+err), position = dodge, width = 0.25) + labs(x = "", y = "Clustering coefficient") + theme_bw())
 }
 
@@ -50,6 +49,8 @@ compare_clustering_to_er <- function(network, epochs = 100, label = "Given netwo
 
 load("results/edge_lists.RData")
 
+plots <- list()
+
 #Construct network with all data
 net <- graph_from_data_frame(d = inData, directed = F)
 
@@ -57,4 +58,24 @@ net <- graph_from_data_frame(d = inData, directed = F)
 net <- simplify(net, remove.multiple = T, remove.loops = T, edge.attr.comb = "min")
 co <- clusters(net)
 net <- induced_subgraph(net, vids = which(co$membership == which.max(co$csize)))
+
+plots[[1]] <- plot_degree_distr(network = net)
+plots[[2]] <- compare_clustering_to_er(network = net, epochs = 100, label = "Full Hi-C")
+
+plots.full <- plot_grid(plotlist = plots, nrow = 1, ncol = 2, labels = letters[1:2])
+save_plot("results/full_netAnalysis.pdf", plots.full, nrow = 1, ncol = 2, base_aspect_ratio = 1.3)
+
+#Construct network with filtered
+net <- graph_from_data_frame(d = fltDF, directed = F)
+
+#Simplify (get rid of loops and multiple edges) and then take the largest connected component only
+net <- simplify(net, remove.multiple = T, remove.loops = T, edge.attr.comb = "min")
+co <- clusters(net)
+net <- induced_subgraph(net, vids = which(co$membership == which.max(co$csize)))
+
+plots[[1]] <- plot_degree_distr(network = net)
+plots[[2]] <- compare_clustering_to_er(network = net, epochs = 100, label = "Filtered Hi-C")
+
+plots.filtered <- plot_grid(plotlist = plots, nrow = 1, ncol = 2, labels = letters[1:2])
+save_plot("results/filtered_netAnalysis.pdf", plots.filtered, nrow = 1, ncol = 2, base_aspect_ratio = 1.3)
 
