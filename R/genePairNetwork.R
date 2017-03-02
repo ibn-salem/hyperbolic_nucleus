@@ -50,6 +50,12 @@ tssGR <- sort(tssGR)
 # CAPTURC_FILE="data/Mifsud2015/TS5_GM12878_promoter-promoter_significant_interactions.txt"
 CAPTURC_FILE="data/Mifsud2015/TS5_GM12878_promoter-promoter_significant_interactions.txt.genePairs"
 
+# Check if file exists, if not, download and format via shell script
+if(!file.exists(CAPTURC_FILE)){
+  system("sh data/download.sh")
+  system("mv Mifsud2015 data")
+}
+
 # due to sparse matrix data structure non available pairs will get 0 counts. This needs to be addressed in downstream analysis
 # see function parseCaptureHiC(inFile=CAPTURC_FILE, tssGR) in paralog_regulation project
 
@@ -63,7 +69,7 @@ inData <- read.delim(CAPTURC_FILE, header=TRUE, colClasses = classes, stringsAsF
 
 
 #-------------------------------------------------------------------
-# 4. Annoate with genomic distance
+# 4. Annotate with genomic distance
 #-------------------------------------------------------------------
 
 s1 <- start(tssGR)[match(inData[,1], names(tssGR))]
@@ -96,4 +102,8 @@ message("INFO: Filtered network has ", nrow(fltDF), " interactions between ",
 write.table(inData, file="results/Mifsud2015_GM12787_with_dist.lnObsExp_10.tsv",
             sep="\t", quote=FALSE, col.names=TRUE, row.names=FALSE)
 
+#Save the data frames
+save(inData, fltDF, file = "results/edge_lists.RData")
+
+system("rm -r data/Mifsud2015")
 
