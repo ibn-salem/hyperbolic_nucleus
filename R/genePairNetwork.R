@@ -107,3 +107,33 @@ save(inData, fltDF, file = "results/edge_lists.RData")
 
 system("rm -r data/Mifsud2015")
 
+#-------------------------------------------------------------------
+# 6. Write note annotation table (chromsome for each gene):
+#-------------------------------------------------------------------
+require(dplyr) # for joining notes with annotation table
+
+# take the unique list of ENSG ids that are present in the network
+genesInNetwork <- unique(c(inData[,1], inData[,2]))
+
+# build data.frame from note list
+netGenesDF <- data.frame(
+  id = genesInNetwork,
+  stringsAsFactors=FALSE
+)
+
+# build a data.frame for the annotations
+geneDF <- as.data.frame(mcols(tssGR))
+geneDF$chr <- as.character(seqnames(tssGR))
+geneDF$names <- as.character(geneDF$names)
+
+# join note list and annotation by using NAs for not available gene IDs.
+noteDF <- netGenesDF %>%
+  left_join(geneDF, by=c("id"="names"))
+
+# out put note table
+write.table(noteDF, file="results/Mifsud2015_GM12787_with_dist.noteDF.tsv",
+            sep="\t", quote=FALSE, col.names=TRUE, row.names=FALSE)
+
+#Save the data frames as .RData file
+save(noteDF, file = "results/noteDF.RData")
+
