@@ -29,44 +29,36 @@ plots <- list()
 #Construct network with all data
 net <- graph_from_data_frame(d = inData, directed = F)
 
-#Simplify (get rid of loops and multiple edges) and then take the largest connected component only
+#Simplify (get rid of loops and multiple edges) and get rid of isolated nodes
 net <- simplify(net, remove.multiple = T, remove.loops = T, edge.attr.comb = "min")
-co <- clusters(net)
-net <- induced_subgraph(net, vids = which(co$membership == which.max(co$csize)))
+net <- delete_vertices(net, v = which(degree(net) < 1))
 E(net)$weight <- E(net)$raw_count
 
-#Apply Disparity Filter [Serrano, Boguna & Vespignani (2009) PNAS 106(16)]
-bb <- disparity_filter(net = net)
+#Apply Disparity Analysis [Serrano, Boguna & Vespignani (2009) PNAS 106(16)]
 
-rm(net)
+#Measure each promoter's disparity and plot degree vs disparity
+disp <- get_node_disparity(net = net)
+p.node.disp <- plot_degree_vs_disparity(net = net, node.disp = disp)
 
-#Analyse the applied filter
-rem <- analyse_filter(bb)
+#Compute edge pvalues according to the disparity filter
+edge.pvals <- get_edge_disparity_pvals(net = net)
 
-#Generate a filtered network with automated disparity threshold (best trade off between fraction of remaining nodes and links)
-filtered.data <- recommend_threshold(bb, return.network = T)
+#Analysis of different filters applied to the network
+analysis <- analyse_disparity_filter(net = net, disparity.pval = edge.pvals, step = 0.01)
 
-#Plot results
-#Fraction of remaining links vs nodes
-plots[[1]] <- ggplot(rem, aes(L, N, colour = filter)) + geom_line(size = 1.5) + scale_x_reverse() + 
-  annotate("point", x = filtered.data$threshold$L, y = filtered.data$threshold$N, colour = "black", size = 3) + 
-  labs(x = expression(L[bb]/L[tot]), y = expression(N[bb]/N[tot])) + theme_bw() + 
-  theme(legend.title = element_blank(), legend.background = element_blank(), legend.justification=c(0,0), legend.position=c(0,0))
+#Plot the analysis results
+p.disp.filter <- plot_disparity_filter_analysis(disp.analysis = analysis)
 
-#Fraction of remaining total weight vs nodes
-plots[[2]] <- ggplot(rem, aes(W, N, colour = filter)) + geom_line(size = 1.5) + scale_x_reverse() + 
-  labs(x = expression(W[bb]/W[tot]), y = expression(N[bb]/N[tot])) + theme_bw() + 
-  theme(legend.title = element_blank(), legend.background = element_blank(), legend.justification=c(0,0), legend.position=c(0,0))
-
-#Resulting node degree distribution
-plots[[3]] <- plot_degree_distr(network = filtered.data$filtered.net)
-
-##Fraction of remaining links vs fraction of nodes in LCC
-plots[[4]] <- ggplot(rem, aes(L, LCC, colour = filter)) + geom_point(size = 1.5) + scale_x_reverse() + 
-  labs(x = expression(L[bb]/L[tot]), y = "Fraction of nodes in LCC") + theme_bw() + 
-  theme(legend.title = element_blank(), legend.background = element_blank(), legend.justification=c(0,0), legend.position=c(0,0))
-
-plots.disparity <- plot_grid(plotlist = plots, nrow = 2, ncol = 2, labels = letters[1:4])
+#Put all plots together
+disparity.plots <- plot_grid(p.node.disp, p.disp.filter$LvsN, p.disp.filter$WvsN, p.disp.filter$AvsLCC, nrow = 2, ncol = 2, labels = letters[1:4])
 save_plot("../results/disparity_filter.pdf", plots.disparity, nrow = 2, ncol = 2, base_aspect_ratio = 1.3)
 
-save(bb, rem, file = "../results/disparity_net.RData")
+#Filter network according to the recommended disparity threshold and get rid of isolated nodes
+net <- delete_edges(net, edges = E(net)[edge.pvals > analysis$threshold[analysis$recommended]])
+net <- delete_vertices(net, v = which(degree(net) < 1))
+
+p.deg <- plot_degree_distr(network = net)
+
+save(disp, p.node.disp, edge.pvals, analysis, p.disp.filter, disparity.plots, p.deg, net, file = "../results/disp_analysis.RData")
+
+
