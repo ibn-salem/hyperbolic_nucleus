@@ -49,7 +49,7 @@ p.disp.filter <- plot_disparity_filter_analysis(disp.analysis = analysis)
 
 #Put all plots together
 disparity.plots <- plot_grid(p.node.disp, p.disp.filter$LvsN, p.disp.filter$WvsN, p.disp.filter$AvsLCC, nrow = 2, ncol = 2, labels = letters[1:4])
-save_plot("../results/disparity_filter.pdf", plots.disparity, nrow = 2, ncol = 2, base_aspect_ratio = 1.3)
+save_plot("../results/disparity_filter.pdf", disparity.plots, nrow = 2, ncol = 2, base_aspect_ratio = 1.3)
 
 #Filter network according to the recommended disparity threshold and get rid of isolated nodes
 filtered.net <- delete_edges(net, edges = E(net)[edge.pvals > analysis$threshold[analysis$recommended]])
