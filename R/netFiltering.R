@@ -24,8 +24,6 @@ plot_degree_distr <- function(network){
 #Construct network with promoter-promoter contact data
 load("../results/edge_lists.RData")
 
-plots <- list()
-
 #Construct network with all data
 net <- graph_from_data_frame(d = inData, directed = F)
 
@@ -54,11 +52,14 @@ disparity.plots <- plot_grid(p.node.disp, p.disp.filter$LvsN, p.disp.filter$WvsN
 save_plot("../results/disparity_filter.pdf", plots.disparity, nrow = 2, ncol = 2, base_aspect_ratio = 1.3)
 
 #Filter network according to the recommended disparity threshold and get rid of isolated nodes
-net <- delete_edges(net, edges = E(net)[edge.pvals > analysis$threshold[analysis$recommended]])
-net <- delete_vertices(net, v = which(degree(net) < 1))
+filtered.net <- delete_edges(net, edges = E(net)[edge.pvals > analysis$threshold[analysis$recommended]])
+filtered.net <- delete_vertices(filtered.net, v = which(degree(filtered.net) < 1))
 
-p.deg <- plot_degree_distr(network = net)
+p.deg <- plot_degree_distr(network = filtered.net)
 
-save(disp, p.node.disp, edge.pvals, analysis, p.disp.filter, disparity.plots, p.deg, net, file = "../results/disp_analysis.RData")
+p.all <- plot_grid(plotlist = p.disp.filter, nrow = 1, ncol = 3, labels = letters[1:3])
+save_plot("../results/disp_analysis.pdf", p.all, nrow = 1, ncol = 3, base_aspect_ratio = 1.3)
+
+save(disp, p.node.disp, edge.pvals, analysis, p.disp.filter, disparity.plots, p.deg, net, filtered.net, file = "../results/disp_analysis.RData")
 
 
