@@ -5,6 +5,9 @@
 
 # ignore all raw data
 data/Mifsud2015/*
+data/Dixon2012/
+data/UCSC
+data/bin
 
 # ignore all results
 results/*
