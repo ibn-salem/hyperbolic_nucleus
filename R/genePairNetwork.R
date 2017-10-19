@@ -8,6 +8,7 @@
 
 require(biomaRt)        # to retrieve human paralogs from Ensembl
 require(TxDb.Hsapiens.UCSC.hg19.knownGene)
+require(rtracklayer)
 require(tidyverse)
 
 #-------------------------------------------------------------------
@@ -90,6 +91,17 @@ inData$dist <- abs(s2 - s1) / 1000
 inData$dist[chr1 != chr2] <- NA
 
 #-------------------------------------------------------------------
+# 4 b). Annotate with TAD inofrmation
+#-------------------------------------------------------------------
+TADs <- import.bed("data/Dixon2012/hESC.hg18.bed.hg19.bed", seqinfo = seqInfo)
+mcols(TADs)[, "id"] <- 1:length(TADs)
+
+hits <- findOverlaps(tssGR, TADs)
+
+mcols(tssGR)[, "TAD"] <- NA
+mcols(tssGR)[queryHits(hits), "TAD"] <- subjectHits(hits)
+
+#-------------------------------------------------------------------
 # 5. Output tab-separated file
 #-------------------------------------------------------------------
 dir.create("results", showWarnings = FALSE)
@@ -116,14 +128,6 @@ save(inData, fltDF, file = "results/edge_lists.RData")
 # 6. Write node annotation table (chromsome for each gene):
 #-------------------------------------------------------------------
 
-# take the unique list of ENSG ids that are present in the network
-genesInNetwork <- unique(c(inData[[1]], inData[[2]]))
-
-# build data.frame from node list
-netGenesDF <- tibble(
-  id = genesInNetwork
-)
-
 # build a data.frame for the annotations
 geneDF <- as.tibble(as.data.frame(mcols(tssGR))) %>% 
   mutate(
@@ -132,8 +136,13 @@ geneDF <- as.tibble(as.data.frame(mcols(tssGR))) %>%
     tss = start(tssGR)
     )
 
+# take the unique list of ENSG ids that are present in the network
+genesInNetwork <- unique(c(inData[[1]], inData[[2]]))
+
 # join node list and annotation by using NAs for not available gene IDs.
-nodeDF <- netGenesDF %>%
+nodeDF <- tibble(
+    id = genesInNetwork
+  ) %>%
   left_join(geneDF, by = c("id" = "names"))
 
 # out put note table
