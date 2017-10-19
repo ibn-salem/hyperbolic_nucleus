@@ -8,6 +8,7 @@
 
 require(biomaRt)        # to retrieve human paralogs from Ensembl
 require(TxDb.Hsapiens.UCSC.hg19.knownGene)
+require(tidyverse)
 
 #-------------------------------------------------------------------
 # 1. get ENSG genes with positions
@@ -26,6 +27,8 @@ geneFilters = "chromosome_name"
 
 # read "normal" human chromosome names (without fixes and patches)
 geneValues = c(1:22, "X", "Y")
+
+# download genes from ensembl biomart
 allGenes = getBM(attributes = geneAttributes, mart = ensemblGRCh37, 
                  filters = geneFilters, values = geneValues)
 
@@ -67,9 +70,7 @@ if (!file.exists(CAPTURC_FILE)) {
 # see function parseCaptureHiC(inFile=CAPTURC_FILE, tssGR) in paralog_regulation project
 
 # parse input file as data frame
-classes <- sapply(read.delim(CAPTURC_FILE, nrows = 5, header=TRUE, stringsAsFactors=FALSE ), class)
-inData <- read.delim(CAPTURC_FILE, header=TRUE, colClasses = classes, stringsAsFactors=FALSE)
-
+inData <- read_tsv(CAPTURC_FILE)
 #-------------------------------------------------------------------
 # 3. Transform in gene pair file
 #-------------------------------------------------------------------
@@ -91,57 +92,52 @@ inData$dist[chr1 != chr2] <- NA
 #-------------------------------------------------------------------
 # 5. Output tab-separated file
 #-------------------------------------------------------------------
-dir.create("results")
+dir.create("results", showWarnings = FALSE)
 
 message("INFO: Network has ", nrow(inData), " interactions between ", 
-        length(unique(c(inData[,1], inData[,2]))), " genes")
+        length(unique(c(inData[[1]], inData[[2]]))), " genes")
 
-write.table(inData, file = "results/Mifsud2015_GM12787_with_dist.tsv",
-            sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
-
+write_tsv(inData, "results/Mifsud2015_GM12787_with_dist.tsv")
 
 # filter for pairs with log(exp/obs) >= 10 
-fltDF <- inData[inData$log.obs.exp. >= 10,]
+fltDF <- inData %>% 
+  filter(`log(obs/exp)` >= 10)
 
 message("INFO: Filtered network has ", nrow(fltDF), " interactions between ", 
-        length(unique(c(fltDF[,1], fltDF[,2]))), " genes")
+        length(unique(c(fltDF[[1]], fltDF[[2]]))), " genes")
 
-write.table(inData, 
-            file = "results/Mifsud2015_GM12787_with_dist.lnObsExp_10.tsv",
-            sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
+write_tsv(fltDF, "results/Mifsud2015_GM12787_with_dist.lnObsExp_10.tsv")
+
 
 #Save the data frames
 save(inData, fltDF, file = "results/edge_lists.RData")
 
-system("rm -r data/Mifsud2015")
-
 #-------------------------------------------------------------------
 # 6. Write node annotation table (chromsome for each gene):
 #-------------------------------------------------------------------
-require(dplyr) # for joining nodes with annotation table
 
 # take the unique list of ENSG ids that are present in the network
-genesInNetwork <- unique(c(inData[,1], inData[,2]))
+genesInNetwork <- unique(c(inData[[1]], inData[[2]]))
 
 # build data.frame from node list
-netGenesDF <- data.frame(
-  id = genesInNetwork,
-  stringsAsFactors = FALSE
+netGenesDF <- tibble(
+  id = genesInNetwork
 )
 
 # build a data.frame for the annotations
-geneDF <- as.data.frame(mcols(tssGR))
-geneDF$chr <- as.character(seqnames(tssGR))
-geneDF$names <- as.character(geneDF$names)
+geneDF <- as.tibble(as.data.frame(mcols(tssGR))) %>% 
+  mutate(
+    chr = as.character(seqnames(tssGR)),
+    names = as.character(geneDF$names),
+    tss = start(tssGR)
+    )
 
 # join node list and annotation by using NAs for not available gene IDs.
 nodeDF <- netGenesDF %>%
   left_join(geneDF, by = c("id" = "names"))
 
 # out put note table
-write.table(nodeDF, file = "results/Mifsud2015_GM12787_with_dist.nodeDF.tsv",
-            sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
+write_tsv(nodeDF, "results/Mifsud2015_GM12787_with_dist.nodeDF.tsv")
 
 #Save the data frames as .RData file
 save(nodeDF, file = "results/nodeDF.RData")
-
