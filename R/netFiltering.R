@@ -47,12 +47,12 @@ plot_degree_distr <- function(network, bins = 100){
 
 #Construct network with promoter-promoter contact data
 load("results/edge_lists.RData")
-load("results/noteDF.RData")
+load("results/nodeDF.RData")
 
 inData$weight <- inData$raw_count
 
 #Construct network with all data
-net <- graph_from_data_frame(d = inData, directed = F, vertices = noteDF)
+net <- graph_from_data_frame(d = inData, directed = F, vertices = nodeDF)
 
 #Simplify (get rid of loops and multiple edges) and then take the largest connected component only
 net <- simplify(net, remove.multiple = T, remove.loops = T, edge.attr.comb = "sum")
