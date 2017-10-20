@@ -132,7 +132,7 @@ save(inData, fltDF, file = "results/edge_lists.RData")
 geneDF <- as.tibble(as.data.frame(mcols(tssGR))) %>% 
   mutate(
     chr = as.character(seqnames(tssGR)),
-    names = as.character(geneDF$names),
+    names = as.character(names),
     tss = start(tssGR)
     )
 

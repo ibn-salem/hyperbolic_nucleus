@@ -40,3 +40,9 @@ coords <- labne_hm(chr_net, gma = gma, Temp = Temp, w = 0)
 # Visualise mapping
 plot_hyperbolic_net(network = chr_net, nodes = coords$polar, 
                     node.colour = coords$polar$theta)
+
+plot_hyperbolic_net(network = chr_net, nodes = coords$polar, 
+                    node.colour = V(chr_net)$TAD)
+
+plot_hyperbolic_net(network = chr_net, nodes = coords$polar, 
+                    node.colour = V(chr_net)$tss)
