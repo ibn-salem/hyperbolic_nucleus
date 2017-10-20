@@ -1,10 +1,8 @@
-require(igraph)
-
 #' Disparity measure of network nodes
 #' 
 #' Computes the disparity measure of each node in a given weighted network.
 #' 
-#' @param net igraph; A weighted undirected network.
+#' @param net igraph; An undirected weighted network.
 #' 
 #' @return A numeric vector of length \code{vcount(net)} with the disparity measure of each node.
 #' 
@@ -67,11 +65,11 @@ get_node_null_disparity <- function(degrees){
 
 #' Visualise node disparities as a function of node degree
 #' 
-#' Given a  weighted undirected network and node disparities precomputed with function \code{get_node_disparity}, 
+#' Given an undirected weighted network and node disparities precomputed with function \code{get_node_disparity}, 
 #' generates a ggplot comparing node disparities as a function of node degree.
 #' Reference lines for null disparities, perfect node homogeneity and perfect node heterogeneity are also shown.
 #' 
-#' @param net igraph; A weighted undirected network.
+#' @param net igraph; An undirected weighted network.
 #' @param node.disp numeric; Numeric vector of length \code{vcount(net)} with the disparity measure of each node in the network.
 #' 
 #' @return A ggplot comparing node disparities as a function of node degree.
@@ -88,6 +86,8 @@ get_node_null_disparity <- function(degrees){
 #' 
 #' @export
 #' @import igraph
+#' @import ggplot2
+#' @importFrom scales trans_breaks trans_format math_format
 #' 
 plot_degree_vs_disparity <- function(net, node.disp){
   null.seq <- seq(from = 1, to = max(degree(net)), by = 1)
@@ -96,28 +96,30 @@ plot_degree_vs_disparity <- function(net, node.disp){
   df.main <- data.frame(deg = degree(net), disp = node.disp, stringsAsFactors = F)
   df.null <- data.frame(deg = null.seq, disp = null.disp$mu + 2*null.disp$sd, stringsAsFactors = F)
   
-  p <- ggplot(df.main, aes(x = deg, y = disp)) + geom_point(colour = "#7fbf7b") +
+  p <- ggplot(df.main, aes_(x = ~deg, y = ~disp)) + geom_point(colour = "#7fbf7b") +
     geom_hline(yintercept = 1, linetype = 2, colour = "blue") +
     geom_abline(slope = 1, intercept = 0, linetype = 2, colour = "blue") +
-    geom_line(data = df.null, aes(x = deg, y = disp), colour = "red") + 
+    geom_line(data = df.null, aes_(x = ~deg, y = ~disp), colour = "red") + 
     coord_cartesian(xlim = c(1, max(degree(net))), ylim = c(1, max(degree(net)))) +
     scale_x_log10(
       breaks = scales::trans_breaks("log10", function(x) 10^x),
-      labels = scales::trans_format("log10", scales::math_format(10^.x))
+      labels = scales::trans_format("log10", scales::math_format())
     ) +
     scale_y_log10(
       breaks = scales::trans_breaks("log10", function(x) 10^x),
-      labels = scales::trans_format("log10", scales::math_format(10^.x))
+      labels = scales::trans_format("log10", scales::math_format())
     ) + annotation_logticks() + labs(x = "Node degree", y = "Node disparity") + theme_bw() +
     theme(panel.grid.minor = element_blank())
+  
+  return(p)
 }
 
-#' Disparity filter for a weighted undirected network
+#' Disparity filter for an undirected weighted network
 #' 
 #' For each weighted edge in the given network, it computes two p-values representing its local significance for the two nodes it touches.
 #' This function returns only the minium p-value for the two that are computed.
 #' 
-#' @param net igraph; A weighted undirected network.
+#' @param net igraph; An undirected weighted network.
 #' @param deg.one.pval numeric; By default, edges of degree-one nodes are assigned a p-value of 1. This can be changed through this parameter.
 #' 
 #' @return A numeric vector of length \code{ecount(net)} with a p-value for each weighted edge of the input network.
@@ -152,7 +154,7 @@ get_edge_disparity_pvals <- function(net, deg.one.pval = 1){
       w <- edg$weight/sum(edg$weight)
       
       # Compute p-values for each edge based on beta distribution with shape parameters 1 and k-1
-      pvals <- 1 - pbeta(w, shape1 = 1, shape2 = length(edg) - 1)
+      pvals <- 1 - stats::pbeta(w, shape1 = 1, shape2 = length(edg) - 1)
       
       # Identify already set pvals and put the computed one in the appropriate list
       # This depends on whether the current node is considered a head or a tail
@@ -181,41 +183,45 @@ get_edge_disparity_pvals <- function(net, deg.one.pval = 1){
 #' It does the same for a filter based on weights (global filter).
 #' In addition, it recommends a disparity p-value to filter the network, keeping as many nodes as possible and the most significant edges.
 #' 
-#' @param net igraph; The weighted undirected network to which the disparity filter was applied.
+#' @param net igraph; The undirected weighted network to which the disparity filter was applied.
 #' @param disparity.pval numeric; The vector of edge p-values obtained with function \code{get_edge_disparity_pvals} for network \code{net}.
-#' @param step numeric; The size of the step for the sequence of values between the maximum and minimum edge p-values.
+#' @param breaks integer; The length of the sequence of values between the maximum and minimum edge p-values.
 #' 
 #' @return Data frame with the following columns:
 #' \item{threshold}{The different p-value thresholds considered in the analysis.}
 #' \item{N}{The remaining fraction of nodes at each threshold.}
 #' \item{L}{The remaining fraction of links at each threshold.}
 #' \item{W}{The remaining fraction of the total weight at each threshold.}
-#' \item{LCC}{Fraction of nodes from the original network in the largest connected component at each threshold.}
+#' \item{LCC.tot}{Fraction of nodes from the original network in the largest connected component of the filtered network.}
+#' \item{LCC.bb}{Fraction of nodes from the filtered network in the largest connected component of the filtered network.}
+#' \item{cc}{Clustering coefficient of the filtered network at each threshold.}
 #' \item{recommended}{TRUE if the threshold is the recommended one to filter the network, FALSE otherwise.}
 #' \item{filter}{Whether the entry of the data frame corresponds to the Disparity or the Global filter.}
 #' 
 #' @author Gregorio Alanis-Lobato \email{galanisl@uni-mainz.de}
 #' 
 #' @references Serrano, M. A. et al. (2009) Extracting the multiscale backbone of complex weighted networks. \emph{PNAS} 106(16).
-#' @references García-Pérez, G. et al. (2016) The hidden hyperbolic geometry of international trade: World Trade Atlas 1870–2013. 
+#' @references Garcia-Perez, G. et al. (2016) The hidden hyperbolic geometry of international trade: World Trade Atlas 1870-2013. 
 #' \emph{Scientific Reports} 6(33441).
 #'
 #' @examples
 #' # Get disparity p-values for the edges of the included US Airports network
 #' edge.pvals <- get_edge_disparity_pvals(net = air)
 #' # Analyse the topology of the networks resulting from the application of different disparity filters
-#' analysis <- analyse_disparity_filter(net = air, disparity.pval = edge.pvals, step = 0.01)
+#' analysis <- analyse_disparity_filter(net = air, disparity.pval = edge.pvals, breaks = 100)
 #' 
 #' @export
 #' @import igraph
 #' 
-analyse_disparity_filter <- function(net, disparity.pval, step = 0.01){
-  disparity.cuts <- seq(from = 1, to = 0, by = -step)
-  global.cuts <- seq(from = min(E(net)$weight), to = max(E(net)$weight), length.out = length(disparity.cuts))
+analyse_disparity_filter <- function(net, disparity.pval, breaks = 100){
+  disparity.cuts <- seq(from = 1, to = 0, length.out = breaks)
+  #The weight breaks are logarithmically spaced
+  global.cuts <- exp(log(10) * seq(log10(min(E(net)$weight)), log10(max(E(net)$weight)), length.out = breaks))
   
   remaining <- data.frame(threshold = c(disparity.cuts, global.cuts), 
                           N = numeric(length = 2*length(disparity.cuts)), L = numeric(length = 2*length(disparity.cuts)), 
-                          W = numeric(length = 2*length(disparity.cuts)), LCC = numeric(length = 2*length(disparity.cuts)),
+                          W = numeric(length = 2*length(disparity.cuts)), LCC.tot = numeric(length = 2*length(disparity.cuts)),
+                          LCC.bb = numeric(length = 2*length(disparity.cuts)), cc = numeric(length = 2*length(disparity.cuts)),
                           recommended = logical(length = 2*length(disparity.cuts)), filter = factor(rep(c("Disparity", "Global"), 
                                                                                                         each = length(disparity.cuts)), 
                                                                                                     levels = c("Disparity", "Global"), ordered = T))
@@ -231,7 +237,9 @@ analyse_disparity_filter <- function(net, disparity.pval, step = 0.01){
     remaining$N[i] <- vcount(g)/vcount(net)
     remaining$L[i] <- ecount(g)/ecount(net)
     remaining$W[i] <- sum(E(g)$weight)/sum(E(net)$weight)
-    remaining$LCC[i] <- ifelse(length(clusters(g)$csize) > 0, max(clusters(g)$csize)/vcount(net), 0)
+    remaining$LCC.tot[i] <- ifelse(length(clusters(g)$csize) > 0, max(clusters(g)$csize)/vcount(net), 0)
+    remaining$LCC.bb[i] <- ifelse(length(clusters(g)$csize) > 0, max(clusters(g)$csize)/vcount(g), 0)
+    remaining$cc[i] <- ifelse(is.na(transitivity(g, type = "localaverage")), 0, transitivity(g, type = "localaverage"))
   }
   
   # Compute the vertical distance between every point in the Lbb/Ltot<->Nbb/Ntot curve and the diagonal (where Lbb/Ltot == Nbb/Ntot)
@@ -243,33 +251,35 @@ analyse_disparity_filter <- function(net, disparity.pval, step = 0.01){
   return(remaining)
 }
 
-#' Visual analysis of the disparity filter applied to a weighted undirected network
+#' Visual analysis of the disparity filter applied to an undirected weighted network
 #' 
-#' After the application of function \code{analyse_disparity_filter} to a weighted undirected network,
+#' After the application of function \code{analyse_disparity_filter} to an undirected weighted network,
 #' it generates three ggplots showing how the remaining fraction of nodes changes as a function of the
 #' remaining fraction of links and total weight as more stringent filters are applied to the network.
 #' The third plot shows how the fraction of nodes in the largest connected component of the network 
 #' changes as a function of the different filters applied.
 #' All three plots indicate the final situation of the network for the recommended disparity filter.
 #' 
-#' @param analysis data frame; The data frame resulting from the application of function \code{analyse_disparity_filter}.
+#' @param disp.analysis data frame; The data frame resulting from the application of function \code{analyse_disparity_filter}.
 #' 
-#' @return A list of three ggplots:
+#' @return A list of five ggplots:
 #' \item{LvsN}{The remaining fraction of nodes as a function of the remaining fraction of links.}
 #' \item{WvsN}{The remaining fraction of nodes as a function of the remaining fraction of total weight.}
-#' \item{AvsLCC}{Fraction of nodes from the original network in the LCC as a function of different p-value thresholds.}
+#' \item{AvsLCC.tot}{Fraction of nodes from the original network in the LCC of the filtered network as a function of different p-value thresholds.}
+#' \item{AvsLCC.bb}{Fraction of nodes from the filtered network in the LCC of the filtered network as a function of different p-value thresholds.}
+#' \item{AvsCC}{Clustering coefficient as a function of different p-value thresholds.}
 #' 
 #' @author Gregorio Alanis-Lobato \email{galanisl@uni-mainz.de}
 #' 
 #' @references Serrano, M. A. et al. (2009) Extracting the multiscale backbone of complex weighted networks. \emph{PNAS} 106(16).
-#' @references García-Pérez, G. et al. (2016) The hidden hyperbolic geometry of international trade: World Trade Atlas 1870–2013. 
+#' @references Garcia-Perez, G. et al. (2016) The hidden hyperbolic geometry of international trade: World Trade Atlas 1870-2013. 
 #' \emph{Scientific Reports} 6(33441).
 #'
 #' @examples
 #' # Get disparity p-values for the edges of the included US Airports network
 #' edge.pvals <- get_edge_disparity_pvals(net = air)
 #' # Analyse the topology of the networks resulting from the application of different disparity filters
-#' analysis <- analyse_disparity_filter(net = air, disp.pvals = edge.pvals, step = 0.01)
+#' analysis <- analyse_disparity_filter(net = air, disparity.pval = edge.pvals, breaks = 100)
 #' # Plot the results of the analysis
 #' p <- plot_disparity_filter_analysis(disp.analysis = analysis)
 #' 
@@ -277,10 +287,10 @@ analyse_disparity_filter <- function(net, disparity.pval, step = 0.01){
 #' @import ggplot2
 #' 
 plot_disparity_filter_analysis <- function(disp.analysis){
-  p <- vector(mode = "list", length = 3)
-  names(p) <- c("LvsN", "WvsN", "AvsLCC")
+  p <- vector(mode = "list", length = 5)
+  names(p) <- c("LvsN", "WvsN", "AvsLCC.tot", "AvsLCC.bb", "AvsCC")
   
-  p$LvsN <- ggplot(disp.analysis, aes(L, N, colour = filter, shape = filter)) + geom_point(size = 4) + geom_line() +
+  p$LvsN <- ggplot(disp.analysis, aes_(~L, ~N, colour = ~filter, shape = ~filter)) + geom_point(size = 4) + geom_line() +
     scale_colour_manual(values = c("#7fbf7b", "#af8dc3")) +
     geom_abline(slope = -1, intercept = 0, linetype = 2, colour = "blue") +
     geom_vline(xintercept = disp.analysis$L[disp.analysis$recommended], linetype = 2, colour = "red") + 
@@ -288,7 +298,7 @@ plot_disparity_filter_analysis <- function(disp.analysis){
     labs(x = expression(L[bb]/L[tot]), y = expression(N[bb]/N[tot])) + theme_bw() + 
     theme(legend.title = element_blank(), legend.background = element_blank(), legend.justification = c(0,0), legend.position = c(0,0))
   
-  p$WvsN <- ggplot(disp.analysis, aes(W, N, colour = filter, shape = filter)) + geom_point(size = 4) + geom_line() +
+  p$WvsN <- ggplot(disp.analysis, aes_(~W, ~N, colour = ~filter, shape = ~filter)) + geom_point(size = 4) + geom_line() +
     scale_colour_manual(values = c("#7fbf7b", "#af8dc3")) +
     geom_vline(xintercept = disp.analysis$W[disp.analysis$recommended], linetype = 2, colour = "red") + 
     geom_hline(yintercept = disp.analysis$N[disp.analysis$recommended], linetype = 2, colour = "red") + scale_x_reverse() + 
@@ -301,11 +311,25 @@ plot_disparity_filter_analysis <- function(disp.analysis){
     (max(disp.analysis$threshold[disp.analysis$filter == "Global"]) - 
        min(disp.analysis$threshold[disp.analysis$filter == "Global"]))
   
-  p$AvsLCC <- ggplot(disp.analysis, aes(threshold, LCC, colour = filter, shape = filter)) + geom_point(size = 4) + geom_line() +
+  p$AvsLCC.tot <- ggplot(disp.analysis, aes_(~threshold, ~LCC.tot, colour = ~filter, shape = ~filter)) + geom_point(size = 4) + geom_line() +
     scale_colour_manual(values = c("#7fbf7b", "#af8dc3")) +
     geom_vline(xintercept = disp.analysis$threshold[disp.analysis$recommended], linetype = 2, colour = "red") + 
-    geom_hline(yintercept = disp.analysis$LCC[disp.analysis$recommended], linetype = 2, colour = "red") + scale_x_reverse() + 
+    geom_hline(yintercept = disp.analysis$LCC.tot[disp.analysis$recommended], linetype = 2, colour = "red") + scale_x_reverse() + 
     labs(x = "Disparity p-values/Normalised weight", y = expression(paste("Fraction of ", N[tot], " in ", LCC[bb]))) + theme_bw() + 
+    theme(legend.title = element_blank(), legend.background = element_blank(), legend.justification = c(0,0), legend.position = c(0,0.5))
+  
+  p$AvsLCC.bb <- ggplot(disp.analysis, aes_(~threshold, ~LCC.bb, colour = ~filter, shape = ~filter)) + geom_point(size = 4) + geom_line() +
+    scale_colour_manual(values = c("#7fbf7b", "#af8dc3")) +
+    geom_vline(xintercept = disp.analysis$threshold[disp.analysis$recommended], linetype = 2, colour = "red") + 
+    geom_hline(yintercept = disp.analysis$LCC.bb[disp.analysis$recommended], linetype = 2, colour = "red") + scale_x_reverse() + 
+    labs(x = "Disparity p-values/Normalised weight", y = expression(paste("Fraction of ", N[bb], " in ", LCC[bb]))) + theme_bw() + 
+    theme(legend.title = element_blank(), legend.background = element_blank(), legend.justification = c(0,0), legend.position = c(0,0.5))
+  
+  p$AvsCC <- ggplot(disp.analysis, aes_(~threshold, ~cc, colour = ~filter, shape = ~filter)) + geom_point(size = 4) + geom_line() +
+    scale_colour_manual(values = c("#7fbf7b", "#af8dc3")) +
+    geom_vline(xintercept = disp.analysis$threshold[disp.analysis$recommended], linetype = 2, colour = "red") + 
+    geom_hline(yintercept = disp.analysis$cc[disp.analysis$recommended], linetype = 2, colour = "red") + scale_x_reverse() + 
+    labs(x = "Disparity p-values/Normalised weight", y = "Clustering coefficient") + theme_bw() + 
     theme(legend.title = element_blank(), legend.background = element_blank(), legend.justification = c(0,0), legend.position = c(0,0.5))
   
   return(p)
